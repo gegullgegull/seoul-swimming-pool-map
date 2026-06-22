@@ -1,0 +1,1 @@
+window.KAKAO_JAVASCRIPT_KEY = "b0c26b96ab32706a0ea997b01d9cbe08";
