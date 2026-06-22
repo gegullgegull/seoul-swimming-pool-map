@@ -24,7 +24,10 @@
 
   function showSetupNotice(title, detail) {
     const origin = window.location.origin;
-    els.setupNotice.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span><span>Current origin: ${escapeHtml(origin)}</span>`;
+    els.setupNotice.innerHTML =
+      `<strong>${escapeHtml(title)}</strong>` +
+      `<span>${escapeHtml(detail)}</span>` +
+      `<span>Current origin: ${escapeHtml(origin)}</span>`;
     els.setupNotice.classList.remove("hidden");
     els.fallbackMap.classList.remove("hidden");
   }
@@ -34,20 +37,18 @@
     return pool.tags.includes(state.filter);
   }
 
+  function getTypeLabel(pool) {
+    if (pool.tags.includes("hangang")) return "한강";
+    if (pool.tags.includes("private")) return "민간";
+    return "공공";
+  }
+
   function matchesQuery(pool) {
     if (!state.query) return true;
-
-    const haystack = [
-      pool.name,
-      pool.district,
-      pool.address,
-      pool.hours,
-      pool.price,
-      pool.note
-    ]
+    const haystack = [pool.name, pool.district, pool.address, pool.hours, pool.price, pool.note, pool.source]
+      .filter(Boolean)
       .join(" ")
       .toLowerCase();
-
     return haystack.includes(state.query);
   }
 
@@ -55,21 +56,46 @@
     return pools.filter((pool) => matchesFilter(pool) && matchesQuery(pool));
   }
 
+  function createCard(pool) {
+    const node = els.template.content.firstElementChild.cloneNode(true);
+    node.querySelector("h3").textContent = pool.name;
+    node.querySelector(".pool-meta").textContent = `${getTypeLabel(pool)} · ${pool.address}`;
+    node.querySelector(".hours").textContent = pool.hours;
+    node.querySelector(".price").textContent = pool.price;
+    node.querySelector(".note").textContent = pool.note;
+    node.querySelector(".pool-card-button").addEventListener("click", () => focusPool(pool.id));
+    return node;
+  }
+
   function renderList() {
     state.renderedPools = getVisiblePools();
     els.poolList.replaceChildren();
-    els.countBadge.textContent = `${state.renderedPools.length} places`;
+    els.countBadge.textContent = `${state.renderedPools.length}곳`;
 
+    const grouped = new Map();
     state.renderedPools.forEach((pool) => {
-      const node = els.template.content.firstElementChild.cloneNode(true);
-      node.querySelector("h3").textContent = pool.name;
-      node.querySelector(".pool-meta").textContent = `${pool.district} - ${pool.address}`;
-      node.querySelector(".hours").textContent = pool.hours;
-      node.querySelector(".price").textContent = pool.price;
-      node.querySelector(".note").textContent = pool.note;
-      node.querySelector(".pool-card-button").addEventListener("click", () => focusPool(pool.id));
-      els.poolList.appendChild(node);
+      if (!grouped.has(pool.district)) grouped.set(pool.district, []);
+      grouped.get(pool.district).push(pool);
     });
+
+    Array.from(grouped.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([district, districtPools]) => {
+        const group = document.createElement("section");
+        group.className = "district-group";
+
+        const header = document.createElement("div");
+        header.className = "district-group-header";
+        header.innerHTML = `<h3>${escapeHtml(district)}</h3><span>${districtPools.length}곳</span>`;
+        group.appendChild(header);
+
+        const grid = document.createElement("div");
+        grid.className = "pool-list";
+        districtPools.forEach((pool) => grid.appendChild(createCard(pool)));
+
+        group.appendChild(grid);
+        els.poolList.appendChild(group);
+      });
   }
 
   function loadKakaoMap() {
@@ -87,6 +113,7 @@
     const script = document.createElement("script");
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
     script.async = true;
+
     const loadTimer = window.setTimeout(() => {
       if (!window.kakao || !window.kakao.maps) {
         showSetupNotice(
@@ -109,6 +136,7 @@
 
       window.kakao.maps.load(initMap);
     };
+
     script.onerror = () => {
       window.clearTimeout(loadTimer);
       showSetupNotice(
@@ -117,6 +145,7 @@
       );
       renderList();
     };
+
     document.head.appendChild(script);
   }
 
@@ -195,7 +224,7 @@
     content.className = "info-window";
     content.innerHTML = `
       <h3>${escapeHtml(pool.name)}</h3>
-      <p>${escapeHtml(pool.district)} - ${escapeHtml(pool.address)}</p>
+      <p>${escapeHtml(getTypeLabel(pool))} · ${escapeHtml(pool.district)} - ${escapeHtml(pool.address)}</p>
       <p>${escapeHtml(pool.hours)}</p>
       <p class="price-line">${escapeHtml(pool.price)}</p>
       <p>${escapeHtml(pool.note)}</p>

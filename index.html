@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -11,47 +11,47 @@
       <section class="hero">
         <div>
           <p class="eyebrow">Seoul Swim Map</p>
-          <h1>Seoul Swim Map</h1>
-          <p class="subtitle">Browse public pools and Hangang pools in one place, then compare location and price notes at a glance.</p>
+          <h1>서울 수영장 지도</h1>
+          <p class="subtitle">공공, 한강, 민간 수영장을 한 화면에서 보고 비교할 수 있습니다.</p>
         </div>
-        <button id="locateButton" class="icon-button" type="button" aria-label="Use current location">
-          <span aria-hidden="true">⌖</span>
+        <button id="locateButton" class="icon-button" type="button" aria-label="현재 위치 사용">
+          <span aria-hidden="true">*</span>
         </button>
       </section>
 
       <section id="setupNotice" class="notice hidden">
         <strong>Kakao Maps setup is required</strong>
-        <span>Follow the README and set <code>KAKAO_JAVASCRIPT_KEY</code> in <code>config.js</code>.</span>
+        <span>README.md 안내에 따라 <code>config.js</code>의 <code>KAKAO_JAVASCRIPT_KEY</code>를 입력하세요.</span>
       </section>
 
-      <section class="toolbar" aria-label="Pool filters">
+      <section class="toolbar" aria-label="수영장 필터">
         <div class="search-wrap">
-          <span aria-hidden="true">⌕</span>
-          <input id="searchInput" type="search" placeholder="Search pools, districts, prices" autocomplete="off" />
+          <span aria-hidden="true">*</span>
+          <input id="searchInput" type="search" placeholder="수영장, 구, 가격 검색" autocomplete="off" />
         </div>
-        <div class="chips" role="group" aria-label="Type filters">
-          <button class="chip active" type="button" data-filter="all">All</button>
-          <button class="chip" type="button" data-filter="public">Public</button>
-          <button class="chip" type="button" data-filter="hangang">Hangang</button>
-          <button class="chip" type="button" data-filter="indoor">Indoor</button>
+        <div class="chips" role="group" aria-label="유형 필터">
+          <button class="chip active" type="button" data-filter="all">전체</button>
+          <button class="chip" type="button" data-filter="public">공공</button>
+          <button class="chip" type="button" data-filter="hangang">한강</button>
+          <button class="chip" type="button" data-filter="private">민간</button>
         </div>
       </section>
 
-      <section class="map-card" aria-label="Seoul swim map">
+      <section class="map-card" aria-label="서울 수영장 지도">
         <div id="map" class="map"></div>
         <div id="fallbackMap" class="fallback-map hidden">
-          <div class="seal-pin">⌖</div>
-          <p>If Kakao Maps is not configured, the list still works here.</p>
+          <div class="seal-pin">*</div>
+          <p>카카오맵 설정이 없으면 여기서 목록만 보입니다.</p>
         </div>
       </section>
 
-      <section class="sheet" aria-label="Pool list">
+      <section class="sheet" aria-label="수영장 목록">
         <div class="sheet-header">
           <div>
             <p class="eyebrow">Pools</p>
-            <h2>Pool list</h2>
+            <h2>수영장 리스트</h2>
           </div>
-          <span id="countBadge" class="count-badge">0 places</span>
+          <span id="countBadge" class="count-badge">0곳</span>
         </div>
         <div id="poolList" class="pool-list"></div>
       </section>
@@ -61,7 +61,7 @@
       <article class="pool-card">
         <button class="pool-card-button" type="button">
           <div class="pool-main">
-            <span class="pool-emoji" aria-hidden="true">⌖</span>
+            <span class="pool-emoji" aria-hidden="true">*</span>
             <div>
               <h3></h3>
               <p class="pool-meta"></p>

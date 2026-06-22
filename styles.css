@@ -267,6 +267,35 @@ h1 {
   gap: 10px;
 }
 
+.district-group {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.district-group:last-child {
+  margin-bottom: 0;
+}
+
+.district-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.district-group-header h3 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.district-group-header span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .pool-card {
   min-width: 0;
 }
