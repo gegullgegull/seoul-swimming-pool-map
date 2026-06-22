@@ -87,11 +87,33 @@
     const script = document.createElement("script");
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
     script.async = true;
-    script.onload = () => window.kakao.maps.load(initMap);
+    const loadTimer = window.setTimeout(() => {
+      if (!window.kakao || !window.kakao.maps) {
+        showSetupNotice(
+          "Kakao Maps script timed out",
+          `The SDK URL did not finish initializing: ${script.src}`
+        );
+      }
+    }, 8000);
+
+    script.onload = () => {
+      window.clearTimeout(loadTimer);
+      if (!window.kakao || !window.kakao.maps) {
+        showSetupNotice(
+          "Kakao Maps loaded but did not initialize",
+          `The SDK response arrived, but window.kakao.maps is still unavailable. URL: ${script.src}`
+        );
+        renderList();
+        return;
+      }
+
+      window.kakao.maps.load(initMap);
+    };
     script.onerror = () => {
+      window.clearTimeout(loadTimer);
       showSetupNotice(
         "Kakao Maps script failed to load",
-        `Check that this exact origin is registered in Kakao Developers: ${window.location.origin}`
+        `Check that this exact origin is registered in Kakao Developers: ${window.location.origin}. URL: ${script.src}`
       );
       renderList();
     };
