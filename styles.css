@@ -418,12 +418,15 @@ h1 {
   box-shadow: 0 16px 46px rgba(15, 23, 42, 0.2);
   backdrop-filter: blur(16px);
   transform: translate(-50%, calc(-100% - 52px));
+  box-sizing: border-box;
+  white-space: normal;
 }
 
 .info-window h3 {
   margin: 0 0 5px;
   font-size: 16px;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .info-window p {
@@ -431,11 +434,18 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 .info-window .price-line {
   color: var(--ink);
   font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.info-window p:last-child {
+  margin-bottom: 0;
 }
 
 @media (min-width: 860px) {
