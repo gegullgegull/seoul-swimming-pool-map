@@ -1,12 +1,11 @@
 (function () {
-  const SEOUL_CENTER = { lat: 37.5665, lng: 126.9780 };
+  const SEOUL_CENTER = { lat: 37.5665, lng: 126.978 };
   const pools = window.SWIM_POOLS || [];
   const state = {
     filter: "all",
     query: "",
     map: null,
     overlays: [],
-    activeOverlay: null,
     infoOverlay: null,
     renderedPools: pools
   };
@@ -23,6 +22,13 @@
     locateButton: document.getElementById("locateButton")
   };
 
+  function showSetupNotice(title, detail) {
+    const origin = window.location.origin;
+    els.setupNotice.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span><span>Current origin: ${escapeHtml(origin)}</span>`;
+    els.setupNotice.classList.remove("hidden");
+    els.fallbackMap.classList.remove("hidden");
+  }
+
   function matchesFilter(pool) {
     if (state.filter === "all") return true;
     return pool.tags.includes(state.filter);
@@ -30,6 +36,7 @@
 
   function matchesQuery(pool) {
     if (!state.query) return true;
+
     const haystack = [
       pool.name,
       pool.district,
@@ -37,7 +44,10 @@
       pool.hours,
       pool.price,
       pool.note
-    ].join(" ").toLowerCase();
+    ]
+      .join(" ")
+      .toLowerCase();
+
     return haystack.includes(state.query);
   }
 
@@ -48,12 +58,12 @@
   function renderList() {
     state.renderedPools = getVisiblePools();
     els.poolList.replaceChildren();
-    els.countBadge.textContent = `${state.renderedPools.length}곳`;
+    els.countBadge.textContent = `${state.renderedPools.length} places`;
 
     state.renderedPools.forEach((pool) => {
       const node = els.template.content.firstElementChild.cloneNode(true);
       node.querySelector("h3").textContent = pool.name;
-      node.querySelector(".pool-meta").textContent = `${pool.district} · ${pool.address}`;
+      node.querySelector(".pool-meta").textContent = `${pool.district} - ${pool.address}`;
       node.querySelector(".hours").textContent = pool.hours;
       node.querySelector(".price").textContent = pool.price;
       node.querySelector(".note").textContent = pool.note;
@@ -64,9 +74,12 @@
 
   function loadKakaoMap() {
     const key = (window.KAKAO_JAVASCRIPT_KEY || "").trim();
+
     if (!key) {
-      els.setupNotice.classList.remove("hidden");
-      els.fallbackMap.classList.remove("hidden");
+      showSetupNotice(
+        "Kakao Maps key is missing",
+        "Set window.KAKAO_JAVASCRIPT_KEY in config.js, then reload this page."
+      );
       renderList();
       return;
     }
@@ -76,8 +89,10 @@
     script.async = true;
     script.onload = () => window.kakao.maps.load(initMap);
     script.onerror = () => {
-      els.setupNotice.classList.remove("hidden");
-      els.fallbackMap.classList.remove("hidden");
+      showSetupNotice(
+        "Kakao Maps script failed to load",
+        `Check that this exact origin is registered in Kakao Developers: ${window.location.origin}`
+      );
       renderList();
     };
     document.head.appendChild(script);
@@ -89,6 +104,7 @@
       center: new window.kakao.maps.LatLng(SEOUL_CENTER.lat, SEOUL_CENTER.lng),
       level: 8
     });
+
     renderMarkers();
     renderList();
   }
@@ -96,13 +112,18 @@
   function clearMarkers() {
     state.overlays.forEach((item) => item.overlay.setMap(null));
     state.overlays = [];
-    if (state.infoOverlay) state.infoOverlay.setMap(null);
-    state.infoOverlay = null;
+
+    if (state.infoOverlay) {
+      state.infoOverlay.setMap(null);
+      state.infoOverlay = null;
+    }
   }
 
   function renderMarkers() {
     if (!state.map) return;
+
     clearMarkers();
+
     const visiblePools = getVisiblePools();
     const bounds = new window.kakao.maps.LatLngBounds();
 
@@ -111,8 +132,8 @@
       const markerEl = document.createElement("button");
       markerEl.type = "button";
       markerEl.className = "seal-marker";
-      markerEl.textContent = "🦭";
-      markerEl.setAttribute("aria-label", `${pool.name} 정보 보기`);
+      markerEl.textContent = "*";
+      markerEl.setAttribute("aria-label", `Show location for ${pool.name}`);
 
       const overlay = new window.kakao.maps.CustomOverlay({
         position,
@@ -132,19 +153,27 @@
 
     if (visiblePools.length > 1) {
       state.map.setBounds(bounds, 44, 44, 44, 44);
+    } else if (visiblePools.length === 1) {
+      state.map.panTo(new window.kakao.maps.LatLng(visiblePools[0].lat, visiblePools[0].lng));
     }
   }
 
   function showInfo(pool) {
     if (!state.map) return;
-    if (state.infoOverlay) state.infoOverlay.setMap(null);
-    state.overlays.forEach((item) => item.element.classList.toggle("active", item.id === pool.id));
+
+    if (state.infoOverlay) {
+      state.infoOverlay.setMap(null);
+    }
+
+    state.overlays.forEach((item) => {
+      item.element.classList.toggle("active", item.id === pool.id);
+    });
 
     const content = document.createElement("div");
     content.className = "info-window";
     content.innerHTML = `
       <h3>${escapeHtml(pool.name)}</h3>
-      <p>${escapeHtml(pool.district)} · ${escapeHtml(pool.address)}</p>
+      <p>${escapeHtml(pool.district)} - ${escapeHtml(pool.address)}</p>
       <p>${escapeHtml(pool.hours)}</p>
       <p class="price-line">${escapeHtml(pool.price)}</p>
       <p>${escapeHtml(pool.note)}</p>
@@ -166,6 +195,7 @@
     if (state.map && moveMap) {
       state.map.panTo(new window.kakao.maps.LatLng(pool.lat, pool.lng));
     }
+
     showInfo(pool);
 
     const cardButtons = Array.from(document.querySelectorAll(".pool-card-button"));
@@ -204,6 +234,7 @@
 
   els.locateButton.addEventListener("click", () => {
     if (!state.map || !navigator.geolocation) return;
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         state.map.panTo(new window.kakao.maps.LatLng(position.coords.latitude, position.coords.longitude));
