@@ -360,21 +360,20 @@ h1 {
   margin-top: 12px;
 }
 
-.pool-details p::before {
-  color: var(--accent);
-  font-weight: 700;
+.detail-line {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
 }
 
-.pool-details .hours::before {
-  content: "운영 ";
+.info-window a {
+  color: var(--accent-strong);
+  text-decoration: none;
 }
 
-.pool-details .price::before {
-  content: "가격 ";
-}
-
-.pool-details .note::before {
-  content: "메모 ";
+.info-window a:hover {
+  text-decoration: underline;
 }
 
 .seal-marker {

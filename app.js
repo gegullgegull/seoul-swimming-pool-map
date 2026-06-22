@@ -1,13 +1,13 @@
 (function () {
   const SEOUL_CENTER = { lat: 37.5665, lng: 126.978 };
-  const pools = window.SWIM_POOLS || [];
+  const pools = Array.isArray(window.SWIM_POOLS) ? window.SWIM_POOLS : [];
   const state = {
     filter: "all",
     query: "",
     map: null,
     overlays: [],
     infoOverlay: null,
-    renderedPools: pools
+    renderedPools: []
   };
 
   const els = {
@@ -22,6 +22,21 @@
     locateButton: document.getElementById("locateButton")
   };
 
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function getTypeLabel(pool) {
+    if (pool.tags && pool.tags.includes("hangang")) return "한강";
+    if (pool.tags && pool.tags.includes("private")) return "민간";
+    return "공공";
+  }
+
   function showSetupNotice(title, detail) {
     const origin = window.location.origin;
     els.setupNotice.innerHTML =
@@ -34,21 +49,24 @@
 
   function matchesFilter(pool) {
     if (state.filter === "all") return true;
-    return pool.tags.includes(state.filter);
-  }
-
-  function getTypeLabel(pool) {
-    if (pool.tags.includes("hangang")) return "한강";
-    if (pool.tags.includes("private")) return "민간";
-    return "공공";
+    return Array.isArray(pool.tags) && pool.tags.includes(state.filter);
   }
 
   function matchesQuery(pool) {
     if (!state.query) return true;
-    const haystack = [pool.name, pool.district, pool.address, pool.hours, pool.price, pool.note, pool.source]
+    const haystack = [
+      pool.name,
+      pool.district,
+      pool.address,
+      pool.hours,
+      pool.price,
+      pool.note,
+      pool.source
+    ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
+
     return haystack.includes(state.query);
   }
 
@@ -56,46 +74,210 @@
     return pools.filter((pool) => matchesFilter(pool) && matchesQuery(pool));
   }
 
+  function buildDetail(label, value) {
+    const line = document.createElement("p");
+    line.className = "detail-line";
+    line.textContent = `${label}: ${value || "-"}`;
+    return line;
+  }
+
   function createCard(pool) {
     const node = els.template.content.firstElementChild.cloneNode(true);
+    const button = node.querySelector(".pool-card-button");
+    button.dataset.poolId = pool.id;
+
     node.querySelector("h3").textContent = pool.name;
     node.querySelector(".pool-meta").textContent = `${getTypeLabel(pool)} · ${pool.address}`;
-    node.querySelector(".hours").textContent = pool.hours;
-    node.querySelector(".price").textContent = pool.price;
-    node.querySelector(".note").textContent = pool.note;
-    node.querySelector(".pool-card-button").addEventListener("click", () => focusPool(pool.id));
+
+    const details = node.querySelector(".pool-details");
+    details.replaceChildren(
+      buildDetail("운영시간", pool.hours),
+      buildDetail("요금", pool.price),
+      buildDetail("비고", pool.note)
+    );
+
+    button.addEventListener("click", () => focusPool(pool.id));
     return node;
   }
 
   function renderList() {
     state.renderedPools = getVisiblePools();
     els.poolList.replaceChildren();
-    els.countBadge.textContent = `${state.renderedPools.length}곳`;
+    els.countBadge.textContent = `${state.renderedPools.length}개`;
 
     const grouped = new Map();
     state.renderedPools.forEach((pool) => {
-      if (!grouped.has(pool.district)) grouped.set(pool.district, []);
-      grouped.get(pool.district).push(pool);
+      const key = pool.district || "기타";
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(pool);
     });
 
     Array.from(grouped.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => a.localeCompare(b, "ko"))
       .forEach(([district, districtPools]) => {
         const group = document.createElement("section");
         group.className = "district-group";
 
         const header = document.createElement("div");
         header.className = "district-group-header";
-        header.innerHTML = `<h3>${escapeHtml(district)}</h3><span>${districtPools.length}곳</span>`;
-        group.appendChild(header);
+
+        const title = document.createElement("h3");
+        title.textContent = district;
+
+        const count = document.createElement("span");
+        count.textContent = `${districtPools.length}개`;
+
+        header.append(title, count);
 
         const grid = document.createElement("div");
         grid.className = "pool-list";
-        districtPools.forEach((pool) => grid.appendChild(createCard(pool)));
 
-        group.appendChild(grid);
+        districtPools.forEach((pool) => {
+          grid.appendChild(createCard(pool));
+        });
+
+        group.append(header, grid);
         els.poolList.appendChild(group);
       });
+  }
+
+  function clearMarkers() {
+    state.overlays.forEach((item) => item.overlay.setMap(null));
+    state.overlays = [];
+
+    if (state.infoOverlay) {
+      state.infoOverlay.setMap(null);
+      state.infoOverlay = null;
+    }
+  }
+
+  function showInfo(pool) {
+    if (!state.map) return;
+
+    if (state.infoOverlay) {
+      state.infoOverlay.setMap(null);
+    }
+
+    state.overlays.forEach((item) => {
+      item.element.classList.toggle("active", item.id === pool.id);
+    });
+
+    const content = document.createElement("div");
+    content.className = "info-window";
+
+    const title = document.createElement("h3");
+    title.textContent = pool.name;
+
+    const meta = document.createElement("p");
+    meta.textContent = `${getTypeLabel(pool)} · ${pool.district} · ${pool.address}`;
+
+    const hours = document.createElement("p");
+    hours.textContent = pool.hours;
+
+    const price = document.createElement("p");
+    price.className = "price-line";
+    price.textContent = pool.price;
+
+    const note = document.createElement("p");
+    note.textContent = pool.note;
+
+    content.append(title, meta, hours, price, note);
+
+    if (pool.sourceUrl) {
+      const source = document.createElement("p");
+      const link = document.createElement("a");
+      link.href = pool.sourceUrl;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = pool.source || "출처";
+      source.appendChild(link);
+      content.appendChild(source);
+    }
+
+    state.infoOverlay = new window.kakao.maps.CustomOverlay({
+      position: new window.kakao.maps.LatLng(pool.lat, pool.lng),
+      content,
+      yAnchor: 0,
+      zIndex: 30
+    });
+
+    state.infoOverlay.setMap(state.map);
+  }
+
+  function renderMarkers() {
+    if (!state.map) return;
+
+    clearMarkers();
+
+    const visiblePools = getVisiblePools();
+    if (visiblePools.length === 0) return;
+
+    const bounds = new window.kakao.maps.LatLngBounds();
+
+    visiblePools.forEach((pool) => {
+      const position = new window.kakao.maps.LatLng(pool.lat, pool.lng);
+      const markerEl = document.createElement("button");
+      markerEl.type = "button";
+      markerEl.className = "seal-marker";
+      markerEl.textContent = "•";
+      markerEl.setAttribute("aria-label", `${pool.name} 위치 보기`);
+
+      const overlay = new window.kakao.maps.CustomOverlay({
+        position,
+        content: markerEl,
+        yAnchor: 0,
+        zIndex: 10
+      });
+
+      overlay.setMap(state.map);
+      state.overlays.push({ id: pool.id, overlay, element: markerEl, pool });
+      bounds.extend(position);
+
+      markerEl.addEventListener("mouseenter", () => showInfo(pool));
+      markerEl.addEventListener("focus", () => showInfo(pool));
+      markerEl.addEventListener("click", () => focusPool(pool.id, false));
+    });
+
+    if (visiblePools.length === 1) {
+      state.map.panTo(new window.kakao.maps.LatLng(visiblePools[0].lat, visiblePools[0].lng));
+    } else {
+      state.map.setBounds(bounds);
+    }
+  }
+
+  function focusPool(poolId, moveMap = true) {
+    const pool = pools.find((item) => item.id === poolId);
+    if (!pool) return;
+
+    if (state.map && moveMap) {
+      state.map.panTo(new window.kakao.maps.LatLng(pool.lat, pool.lng));
+    }
+
+    showInfo(pool);
+
+    const button = Array.from(els.poolList.querySelectorAll(".pool-card-button")).find(
+      (item) => item.dataset.poolId === poolId
+    );
+    if (button) {
+      button.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
+
+  function applyFilters() {
+    renderList();
+    renderMarkers();
+  }
+
+  function initMap() {
+    els.fallbackMap.classList.add("hidden");
+
+    state.map = new window.kakao.maps.Map(els.map, {
+      center: new window.kakao.maps.LatLng(SEOUL_CENTER.lat, SEOUL_CENTER.lng),
+      level: 8
+    });
+
+    renderList();
+    renderMarkers();
   }
 
   function loadKakaoMap() {
@@ -114,7 +296,7 @@
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
     script.async = true;
 
-    const loadTimer = window.setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       if (!window.kakao || !window.kakao.maps) {
         showSetupNotice(
           "Kakao Maps script timed out",
@@ -124,7 +306,8 @@
     }, 8000);
 
     script.onload = () => {
-      window.clearTimeout(loadTimer);
+      window.clearTimeout(timeoutId);
+
       if (!window.kakao || !window.kakao.maps) {
         showSetupNotice(
           "Kakao Maps loaded but did not initialize",
@@ -138,7 +321,7 @@
     };
 
     script.onerror = () => {
-      window.clearTimeout(loadTimer);
+      window.clearTimeout(timeoutId);
       showSetupNotice(
         "Kakao Maps script failed to load",
         `Check that this exact origin is registered in Kakao Developers: ${window.location.origin}. URL: ${script.src}`
@@ -147,127 +330,6 @@
     };
 
     document.head.appendChild(script);
-  }
-
-  function initMap() {
-    els.fallbackMap.classList.add("hidden");
-    state.map = new window.kakao.maps.Map(els.map, {
-      center: new window.kakao.maps.LatLng(SEOUL_CENTER.lat, SEOUL_CENTER.lng),
-      level: 8
-    });
-
-    renderMarkers();
-    renderList();
-  }
-
-  function clearMarkers() {
-    state.overlays.forEach((item) => item.overlay.setMap(null));
-    state.overlays = [];
-
-    if (state.infoOverlay) {
-      state.infoOverlay.setMap(null);
-      state.infoOverlay = null;
-    }
-  }
-
-  function renderMarkers() {
-    if (!state.map) return;
-
-    clearMarkers();
-
-    const visiblePools = getVisiblePools();
-    const bounds = new window.kakao.maps.LatLngBounds();
-
-    visiblePools.forEach((pool) => {
-      const position = new window.kakao.maps.LatLng(pool.lat, pool.lng);
-      const markerEl = document.createElement("button");
-      markerEl.type = "button";
-      markerEl.className = "seal-marker";
-      markerEl.textContent = "*";
-      markerEl.setAttribute("aria-label", `Show location for ${pool.name}`);
-
-      const overlay = new window.kakao.maps.CustomOverlay({
-        position,
-        content: markerEl,
-        yAnchor: 0,
-        zIndex: 10
-      });
-
-      overlay.setMap(state.map);
-      state.overlays.push({ id: pool.id, overlay, element: markerEl, pool });
-      bounds.extend(position);
-
-      markerEl.addEventListener("mouseenter", () => showInfo(pool));
-      markerEl.addEventListener("focus", () => showInfo(pool));
-      markerEl.addEventListener("click", () => focusPool(pool.id, false));
-    });
-
-    if (visiblePools.length > 1) {
-      state.map.setBounds(bounds, 44, 44, 44, 44);
-    } else if (visiblePools.length === 1) {
-      state.map.panTo(new window.kakao.maps.LatLng(visiblePools[0].lat, visiblePools[0].lng));
-    }
-  }
-
-  function showInfo(pool) {
-    if (!state.map) return;
-
-    if (state.infoOverlay) {
-      state.infoOverlay.setMap(null);
-    }
-
-    state.overlays.forEach((item) => {
-      item.element.classList.toggle("active", item.id === pool.id);
-    });
-
-    const content = document.createElement("div");
-    content.className = "info-window";
-    content.innerHTML = `
-      <h3>${escapeHtml(pool.name)}</h3>
-      <p>${escapeHtml(getTypeLabel(pool))} · ${escapeHtml(pool.district)} - ${escapeHtml(pool.address)}</p>
-      <p>${escapeHtml(pool.hours)}</p>
-      <p class="price-line">${escapeHtml(pool.price)}</p>
-      <p>${escapeHtml(pool.note)}</p>
-    `;
-
-    state.infoOverlay = new window.kakao.maps.CustomOverlay({
-      position: new window.kakao.maps.LatLng(pool.lat, pool.lng),
-      content,
-      yAnchor: 0,
-      zIndex: 30
-    });
-    state.infoOverlay.setMap(state.map);
-  }
-
-  function focusPool(poolId, moveMap = true) {
-    const pool = pools.find((item) => item.id === poolId);
-    if (!pool) return;
-
-    if (state.map && moveMap) {
-      state.map.panTo(new window.kakao.maps.LatLng(pool.lat, pool.lng));
-    }
-
-    showInfo(pool);
-
-    const cardButtons = Array.from(document.querySelectorAll(".pool-card-button"));
-    const index = state.renderedPools.findIndex((item) => item.id === poolId);
-    if (index >= 0 && cardButtons[index]) {
-      cardButtons[index].scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function applyFilters() {
-    renderList();
-    renderMarkers();
   }
 
   els.searchInput.addEventListener("input", (event) => {
@@ -288,7 +350,9 @@
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        state.map.panTo(new window.kakao.maps.LatLng(position.coords.latitude, position.coords.longitude));
+        state.map.panTo(
+          new window.kakao.maps.LatLng(position.coords.latitude, position.coords.longitude)
+        );
         state.map.setLevel(5);
       },
       () => {
